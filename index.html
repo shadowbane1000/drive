@@ -50,8 +50,9 @@
   /* ---------- gauge mic (signature) ---------- */
   #deck{padding:6px 0 22px;display:flex;flex-direction:column;align-items:center;gap:14px}
   #gauge{position:relative;width:min(52vw,230px);aspect-ratio:1;display:grid;place-items:center}
-  #ring{position:absolute;inset:0}
+  #ring{position:absolute;inset:0;pointer-events:none}
   #mic{
+    position:relative;z-index:1;
     width:62%;aspect-ratio:1;border-radius:50%;
     background:radial-gradient(circle at 34% 30%,#1B222B,#10151B 70%);
     border:1px solid var(--line);
