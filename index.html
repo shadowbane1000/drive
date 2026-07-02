@@ -271,28 +271,23 @@ function speak(text){
 $("stopTts").addEventListener("click", ()=> window.speechSynthesis?.cancel());
 if(!("speechSynthesis" in window)) $("stopTts").style.display="none";
 
-/* ---------------- speech recognition + level meter ---------------- */
+/* ---------------- speech recognition ---------------- */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let rec=null, audioCtx=null, analyser=null, meterRAF=null, micStream=null;
+let rec=null, pulseRAF=null;
 
-async function startMeter(){
-  try{
-    micStream=await navigator.mediaDevices.getUserMedia({audio:true});
-    audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
-    const src=audioCtx.createMediaStreamSource(micStream);
-    analyser=audioCtx.createAnalyser(); analyser.fftSize=256; src.connect(analyser);
-    const buf=new Uint8Array(analyser.frequencyBinCount);
-    (function loop(){
-      analyser.getByteTimeDomainData(buf);
-      let peak=0; for(const s of buf) peak=Math.max(peak, Math.abs(s-128)/128);
-      ringLevel(Math.min(1, peak*2.2));
-      meterRAF=requestAnimationFrame(loop);
-    })();
-  }catch(e){ /* meter is cosmetic; recognition may still work */ }
+/* NOTE: no getUserMedia meter here on purpose — on Android, a second mic
+   consumer starves the native speech recognizer and transcripts come back
+   empty. The ring breathes synthetically while listening instead. */
+function startMeter(){
+  const t0=performance.now();
+  (function loop(t){
+    const v=0.35+0.3*Math.sin((t-t0)/300)+0.12*Math.sin((t-t0)/97);
+    ringLevel(Math.max(0.15,Math.min(1,v)));
+    pulseRAF=requestAnimationFrame(loop);
+  })(t0);
 }
 function stopMeter(){
-  cancelAnimationFrame(meterRAF); meterRAF=null;
-  micStream?.getTracks().forEach(t=>t.stop()); micStream=null;
+  cancelAnimationFrame(pulseRAF); pulseRAF=null;
   ringIdle();
 }
 
