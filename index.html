@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0B0E11">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Drive</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="%230B0E11" stroke="%23FFB454" stroke-width="6"/><circle cx="50" cy="50" r="14" fill="%23FFB454"/></svg>'>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --asphalt:#0B0E11; --panel:#141920; --line:#232B34;
+    --amber:#FFB454; --rec:#FF5C49; --ok:#59C98B;
+    --ice:#D7E0E8; --dim:#6B7684;
+    --label:"Chakra Petch",monospace;
+    --body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--asphalt); color:var(--ice); font-family:var(--body);
+    display:flex; flex-direction:column; overflow:hidden;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    user-select:none;
+  }
+  button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer}
+  button:focus-visible{outline:2px solid var(--amber);outline-offset:3px;border-radius:8px}
+
+  /* ---------- status bar ---------- */
+  #bar{display:flex;align-items:center;gap:14px;padding:14px 18px;font-family:var(--label);font-size:14px;letter-spacing:.08em}
+  #clock{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ice)}
+  .pill{display:flex;align-items:center;gap:6px;color:var(--dim);font-weight:500;text-transform:uppercase;font-size:11px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+  .dot.on{background:var(--ok)}
+  #bar .spacer{flex:1}
+  #gear{font-size:20px;color:var(--dim);padding:6px}
+
+  /* ---------- transcript ---------- */
+  #stage{flex:1;display:flex;flex-direction:column;justify-content:flex-end;padding:0 22px 12px;overflow-y:auto;overscroll-behavior:contain}
+  #heard{font-family:var(--label);font-size:14px;letter-spacing:.04em;color:var(--dim);min-height:20px;margin-bottom:10px}
+  #heard b{color:var(--amber);font-weight:600}
+  #reply{font-size:clamp(22px,6.2vw,34px);line-height:1.32;font-weight:500;color:var(--ice);white-space:pre-wrap}
+  #reply .hint{color:var(--dim);font-size:.72em;line-height:1.45;font-weight:400}
+  #actions{margin-top:12px;display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font-family:var(--label);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--amber);border:1px solid var(--line);border-radius:999px;padding:6px 12px}
+
+  /* ---------- gauge mic (signature) ---------- */
+  #deck{padding:6px 0 22px;display:flex;flex-direction:column;align-items:center;gap:14px}
+  #gauge{position:relative;width:min(52vw,230px);aspect-ratio:1;display:grid;place-items:center}
+  #ring{position:absolute;inset:0}
+  #mic{
+    width:62%;aspect-ratio:1;border-radius:50%;
+    background:radial-gradient(circle at 34% 30%,#1B222B,#10151B 70%);
+    border:1px solid var(--line);
+    display:grid;place-items:center;
+    box-shadow:0 10px 40px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05);
+    transition:transform .12s ease, border-color .2s;
+  }
+  #mic:active{transform:scale(.96)}
+  #mic svg{width:34%;height:auto}
+  #mic .glyph{fill:var(--amber);transition:fill .2s}
+  body.listening #mic .glyph{fill:var(--rec)}
+  body.listening #mic{border-color:rgba(255,92,73,.5)}
+  body.thinking #mic .glyph{fill:var(--dim)}
+  #state{font-family:var(--label);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);min-height:15px}
+  body.listening #state{color:var(--rec)}
+  body.thinking #state{color:var(--amber)}
+  #alt{display:flex;gap:26px}
+  #alt button{font-family:var(--label);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);padding:8px 4px}
+  #alt button:active{color:var(--ice)}
+
+  /* ---------- typed fallback ---------- */
+  #typebox{display:none;width:100%;padding:0 22px 16px}
+  #typebox.open{display:flex;gap:10px}
+  #typebox input{
+    flex:1;background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    color:var(--ice);font:400 17px var(--body);padding:14px 16px;user-select:text;
+  }
+  #typebox input:focus{outline:none;border-color:var(--amber)}
+  #typebox button{font-family:var(--label);color:var(--amber);font-size:13px;letter-spacing:.08em;padding:0 8px}
+
+  /* ---------- settings sheet ---------- */
+  #sheet{
+    position:fixed;inset:0;background:rgba(4,6,8,.72);display:none;z-index:20;
+    align-items:flex-end;justify-content:center;
+  }
+  #sheet.open{display:flex}
+  #sheetCard{
+    width:100%;max-width:560px;max-height:88%;overflow-y:auto;
+    background:var(--panel);border:1px solid var(--line);border-radius:22px 22px 0 0;
+    padding:22px 22px calc(22px + env(safe-area-inset-bottom));
+  }
+  #sheetCard h2{font-family:var(--label);font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber);margin-bottom:18px}
+  .field{margin-bottom:16px}
+  .field label{display:block;font-family:var(--label);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:7px}
+  .field input,.field select{
+    width:100%;background:var(--asphalt);border:1px solid var(--line);border-radius:10px;
+    color:var(--ice);font:400 15px var(--body);padding:12px 13px;user-select:text;
+  }
+  .field input:focus,.field select:focus{outline:none;border-color:var(--amber)}
+  .field .note{font-size:12.5px;color:var(--dim);margin-top:6px;line-height:1.45}
+  .row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-top:1px solid var(--line)}
+  .row span{font-size:15px}
+  .toggle{width:50px;height:28px;border-radius:999px;background:var(--line);position:relative;transition:background .15s}
+  .toggle::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--dim);transition:all .15s}
+  .toggle.on{background:rgba(255,180,84,.25)}
+  .toggle.on::after{left:25px;background:var(--amber)}
+  #save{
+    width:100%;margin-top:18px;padding:15px;border-radius:12px;
+    background:var(--amber);color:#0B0E11;font:600 15px var(--label);letter-spacing:.1em;text-transform:uppercase;
+  }
+  @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
+</style>
+</head>
+<body>
+
+<div id="bar">
+  <div id="clock">--:--</div>
+  <div class="pill"><span class="dot" id="apiDot"></span>API</div>
+  <div class="pill"><span class="dot" id="bridgeDot"></span>Bridge</div>
+  <div class="spacer"></div>
+  <button id="gear" aria-label="Settings">&#9881;</button>
+</div>
+
+<div id="stage">
+  <div id="heard"></div>
+  <div id="reply"><span class="hint">Tap the dial and talk. I can navigate, place calls, draft texts, control music through the Termux bridge, and answer anything on the way.</span></div>
+  <div id="actions"></div>
+</div>
+
+<div id="typebox">
+  <input id="typed" type="text" placeholder="Type instead…" autocomplete="off">
+  <button id="sendTyped">Send</button>
+</div>
+
+<div id="deck">
+  <div id="gauge">
+    <svg id="ring" viewBox="0 0 200 200" aria-hidden="true"></svg>
+    <button id="mic" aria-label="Talk to Claude">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path class="glyph" d="M12 15a4 4 0 0 0 4-4V6a4 4 0 1 0-8 0v5a4 4 0 0 0 4 4Zm6-4a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.94V22h2v-3.06A8 8 0 0 0 20 11h-2Z"/>
+      </svg>
+    </button>
+  </div>
+  <div id="state">Ready</div>
+  <div id="alt">
+    <button id="keys">Keyboard</button>
+    <button id="stopTts">Quiet</button>
+  </div>
+</div>
+
+<div id="sheet">
+  <div id="sheetCard">
+    <h2>Drive · Settings</h2>
+    <div class="field">
+      <label for="fKey">Anthropic API key</label>
+      <input id="fKey" type="password" placeholder="sk-ant-…" autocomplete="off">
+      <div class="note">Stored only on this device. Create one at console.anthropic.com. Never commit it to the repo hosting this file.</div>
+    </div>
+    <div class="field">
+      <label for="fModel">Model</label>
+      <select id="fModel">
+        <option value="claude-sonnet-4-6">Sonnet 4.6 — smart default</option>
+        <option value="claude-haiku-4-5-20251001">Haiku 4.5 — fastest / cheapest</option>
+        <option value="claude-opus-4-8">Opus 4.8</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="fBridge">Termux bridge URL</label>
+      <input id="fBridge" type="text" placeholder="http://127.0.0.1:8787" autocomplete="off">
+      <div class="note">Optional. A small HTTP server in Termux unlocks real SMS send and media keys. Leave blank for now — everything else still works.</div>
+    </div>
+    <div class="row"><span>Speak replies aloud</span><button class="toggle" id="fTts" aria-label="Toggle speech"></button></div>
+    <div class="row"><span>Keep screen awake</span><button class="toggle" id="fWake" aria-label="Toggle wake lock"></button></div>
+    <button id="save">Save</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ---------------- safe storage (in-memory fallback inside sandboxes) ---------------- */
+const mem = {};
+const store = {
+  get(k){ try{ return localStorage.getItem(k) ?? mem[k] ?? null }catch(e){ return mem[k] ?? null } },
+  set(k,v){ mem[k]=v; try{ localStorage.setItem(k,v) }catch(e){} }
+};
+
+/* ---------------- settings ---------------- */
+const S = {
+  key:   store.get("dm_key")    || "",
+  model: store.get("dm_model")  || "claude-sonnet-4-6",
+  bridge:store.get("dm_bridge") || "",
+  tts:   (store.get("dm_tts")   ?? "1") === "1",
+  wake:  (store.get("dm_wake")  ?? "1") === "1",
+};
+
+/* ---------------- elements ---------------- */
+const $ = id => document.getElementById(id);
+const heardEl=$("heard"), replyEl=$("reply"), actionsEl=$("actions"), stateEl=$("state");
+
+/* ---------------- clock ---------------- */
+function tickClock(){
+  const d=new Date();
+  $("clock").textContent = d.toLocaleTimeString([], {hour:"numeric",minute:"2-digit"});
+}
+tickClock(); setInterval(tickClock, 5000);
+
+/* ---------------- gauge ring: 60 ticks ---------------- */
+const ringSvg=$("ring"), TICKS=60, tickEls=[];
+(function buildRing(){
+  const ns="http://www.w3.org/2000/svg";
+  for(let i=0;i<TICKS;i++){
+    const a=(i/TICKS)*2*Math.PI - Math.PI/2;
+    const r1=88, r2=97, cx=100, cy=100;
+    const l=document.createElementNS(ns,"line");
+    l.setAttribute("x1",cx+r1*Math.cos(a)); l.setAttribute("y1",cy+r1*Math.sin(a));
+    l.setAttribute("x2",cx+r2*Math.cos(a)); l.setAttribute("y2",cy+r2*Math.sin(a));
+    l.setAttribute("stroke","#232B34"); l.setAttribute("stroke-width","2.4"); l.setAttribute("stroke-linecap","round");
+    ringSvg.appendChild(l); tickEls.push(l);
+  }
+})();
+let sweepTimer=null, sweepPos=0;
+function ringIdle(){ clearInterval(sweepTimer); sweepTimer=null; tickEls.forEach(t=>t.setAttribute("stroke","#232B34")); }
+function ringLevel(v){ // v 0..1, light ticks symmetrically from top
+  const lit=Math.round(v*TICKS);
+  tickEls.forEach((t,i)=> t.setAttribute("stroke", i<lit ? "#FF5C49" : "#232B34"));
+}
+function ringSweep(){ // thinking: rotating comet
+  clearInterval(sweepTimer);
+  sweepTimer=setInterval(()=>{
+    sweepPos=(sweepPos+1)%TICKS;
+    tickEls.forEach((t,i)=>{
+      const d=(i-sweepPos+TICKS)%TICKS;
+      t.setAttribute("stroke", d<8 ? "#FFB454" : "#232B34");
+    });
+  }, 40);
+}
+
+/* ---------------- UI state ---------------- */
+function setState(name, label){
+  document.body.className=name;
+  stateEl.textContent=label;
+  if(name==="thinking") ringSweep(); else if(name!=="listening") ringIdle();
+}
+function showReply(text){ replyEl.textContent=text; actionsEl.innerHTML=""; }
+function showHint(html){ replyEl.innerHTML='<span class="hint">'+html+'</span>'; }
+function addChip(label){ const c=document.createElement("span"); c.className="chip"; c.textContent=label; actionsEl.appendChild(c); }
+
+/* ---------------- wake lock ---------------- */
+let wakeLock=null;
+async function grabWake(){
+  if(!S.wake || !("wakeLock" in navigator)) return;
+  try{ wakeLock=await navigator.wakeLock.request("screen"); }catch(e){}
+}
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") grabWake(); });
+
+/* ---------------- TTS ---------------- */
+function speak(text){
+  if(!S.tts || !("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.rate=1.05;
+  const vs=speechSynthesis.getVoices();
+  u.voice = vs.find(v=>/en/.test(v.lang) && /Google|Natural/i.test(v.name)) || vs.find(v=>/en/.test(v.lang)) || null;
+  speechSynthesis.speak(u);
+}
+$("stopTts").addEventListener("click", ()=> window.speechSynthesis?.cancel());
+if(!("speechSynthesis" in window)) $("stopTts").style.display="none";
+
+/* ---------------- speech recognition + level meter ---------------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec=null, audioCtx=null, analyser=null, meterRAF=null, micStream=null;
+
+async function startMeter(){
+  try{
+    micStream=await navigator.mediaDevices.getUserMedia({audio:true});
+    audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+    const src=audioCtx.createMediaStreamSource(micStream);
+    analyser=audioCtx.createAnalyser(); analyser.fftSize=256; src.connect(analyser);
+    const buf=new Uint8Array(analyser.frequencyBinCount);
+    (function loop(){
+      analyser.getByteTimeDomainData(buf);
+      let peak=0; for(const s of buf) peak=Math.max(peak, Math.abs(s-128)/128);
+      ringLevel(Math.min(1, peak*2.2));
+      meterRAF=requestAnimationFrame(loop);
+    })();
+  }catch(e){ /* meter is cosmetic; recognition may still work */ }
+}
+function stopMeter(){
+  cancelAnimationFrame(meterRAF); meterRAF=null;
+  micStream?.getTracks().forEach(t=>t.stop()); micStream=null;
+  ringIdle();
+}
+
+function listen(){
+  if(document.body.classList.contains("thinking")) return;
+  if(document.body.classList.contains("listening")){ rec?.stop(); return; }
+  if(!SR){
+    showHint("Speech recognition isn't available here (it's blocked inside the Claude preview, and unsupported in some browsers). Use the keyboard button below — everything else works.");
+    openType(); return;
+  }
+  window.speechSynthesis?.cancel();
+  rec=new SR();
+  rec.lang="en-US"; rec.interimResults=true; rec.continuous=false;
+  let finalText="";
+  rec.onstart=()=>{ setState("listening","Listening"); heardEl.innerHTML="<b>…</b>"; startMeter(); };
+  rec.onresult=e=>{
+    let interim="";
+    for(const r of e.results){ if(r.isFinal) finalText+=r[0].transcript; else interim+=r[0].transcript; }
+    heardEl.innerHTML="<b>"+esc(finalText||interim)+"</b>";
+  };
+  rec.onerror=e=>{
+    stopMeter(); setState("","Ready");
+    if(e.error==="not-allowed") showHint("Microphone permission was denied. Allow it in the browser's site settings, or use the keyboard.");
+    else if(e.error!=="aborted") showHint("Didn't catch that ("+esc(e.error)+"). Tap and try again.");
+  };
+  rec.onend=()=>{
+    stopMeter();
+    if(finalText.trim()) send(finalText.trim());
+    else if(document.body.classList.contains("listening")) setState("","Ready");
+  };
+  try{ rec.start(); }catch(e){}
+}
+$("mic").addEventListener("click", ()=>{ grabWake(); listen(); });
+
+/* ---------------- typed fallback ---------------- */
+function openType(){ $("typebox").classList.add("open"); $("typed").focus(); }
+$("keys").addEventListener("click", openType);
+$("sendTyped").addEventListener("click", ()=>{ const v=$("typed").value.trim(); if(v){ $("typed").value=""; send(v);} });
+$("typed").addEventListener("keydown", e=>{ if(e.key==="Enter") $("sendTyped").click(); });
+
+/* ---------------- tools ---------------- */
+const TOOLS=[
+  {name:"navigate", description:"Start turn-by-turn driving navigation to a destination in the phone's maps app. Use for any 'take me to / navigate to / directions to' request.",
+   input_schema:{type:"object",properties:{destination:{type:"string",description:"Place name or address"}},required:["destination"]}},
+  {name:"place_call", description:"Open the phone dialer with a number ready to call. Only use with an actual phone number the user provided or that you know.",
+   input_schema:{type:"object",properties:{number:{type:"string"}},required:["number"]}},
+  {name:"compose_sms", description:"Open the SMS app with recipient and message pre-filled; the user taps send. Works without the bridge.",
+   input_schema:{type:"object",properties:{number:{type:"string"},body:{type:"string"}},required:["number","body"]}},
+  {name:"media_control", description:"Control whatever is playing on the phone (music, podcast). Requires the Termux bridge.",
+   input_schema:{type:"object",properties:{action:{type:"string",enum:["play_pause","next","previous","pause"]}},required:["action"]}},
+  {name:"send_sms", description:"Actually send an SMS without user confirmation, via the Termux bridge. Prefer compose_sms unless the user explicitly says to just send it.",
+   input_schema:{type:"object",properties:{number:{type:"string"},body:{type:"string"}},required:["number","body"]}},
+  {name:"open_url", description:"Open a URL or Android app link (https:, spotify:, etc.) on the phone.",
+   input_schema:{type:"object",properties:{url:{type:"string"}},required:["url"]}}
+];
+
+function fireUrl(u){
+  // user-gesture chains can break after async API calls; location.href is the most reliable
+  try{ window.location.href=u; return true }catch(e){ return false }
+}
+async function bridge(path, payload){
+  if(!S.bridge) return {ok:false, error:"Termux bridge not configured. Tell the user this action needs the bridge (Settings), and offer the compose alternative if one exists."};
+  try{
+    const r=await fetch(S.bridge.replace(/\/$/,"")+path,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(payload||{})});
+    return {ok:r.ok, status:r.status, body:await r.text()};
+  }catch(e){ return {ok:false, error:"Bridge unreachable: "+e.message}; }
+}
+async function runTool(name, input){
+  switch(name){
+    case "navigate":{
+      const q=encodeURIComponent(input.destination);
+      addChip("Navigate → "+input.destination);
+      const ok=fireUrl("google.navigation:q="+q);
+      setTimeout(()=>{ // fallback if the intent scheme wasn't handled
+        if(document.visibilityState==="visible") fireUrl("https://www.google.com/maps/dir/?api=1&destination="+q+"&travelmode=driving");
+      }, 900);
+      return {ok, launched:"maps navigation", destination:input.destination};
+    }
+    case "place_call":
+      addChip("Call "+input.number);
+      return {ok:fireUrl("tel:"+encodeURIComponent(input.number))};
+    case "compose_sms":
+      addChip("Text "+input.number);
+      return {ok:fireUrl("sms:"+encodeURIComponent(input.number)+"?body="+encodeURIComponent(input.body))};
+    case "open_url":
+      addChip("Open link");
+      return {ok:fireUrl(input.url)};
+    case "media_control":
+      addChip("Media: "+input.action);
+      return await bridge("/media",{action:input.action});
+    case "send_sms":
+      addChip("SMS sent → "+input.number);
+      return await bridge("/sms",{number:input.number, body:input.body});
+    default: return {ok:false, error:"unknown tool"};
+  }
+}
+
+/* ---------------- Claude ---------------- */
+const SYS = "You are Drive, a hands-free in-car assistant. The user is driving: keep replies short, spoken-word natural, one or two sentences unless asked for more. No markdown, no lists, no emoji. Use tools decisively when the request maps to one. If a tool result says the Termux bridge is missing or unreachable, say so briefly and offer the nearest alternative. Current local time: {TIME}.";
+let history=[];
+
+async function send(text){
+  if(!S.key){ openSettings(); showHint("Add your Anthropic API key first (gear icon, top right). It stays on this device."); return; }
+  heardEl.innerHTML="<b>"+esc(text)+"</b>";
+  setState("thinking","Thinking");
+  history.push({role:"user",content:text});
+  if(history.length>24) history=history.slice(-24);
+  try{
+    let guard=0;
+    while(guard++<5){
+      const res=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{
+          "content-type":"application/json",
+          "x-api-key":S.key,
+          "anthropic-version":"2023-06-01",
+          "anthropic-dangerous-direct-browser-access":"true"
+        },
+        body:JSON.stringify({
+          model:S.model, max_tokens:600,
+          system:SYS.replace("{TIME}", new Date().toString()),
+          tools:TOOLS, messages:history
+        })
+      });
+      if(!res.ok){
+        const err=await res.text();
+        throw new Error(res.status===401 ? "API key rejected (401). Check it in Settings." : "API error "+res.status+": "+err.slice(0,200));
+      }
+      const data=await res.json();
+      history.push({role:"assistant",content:data.content});
+      const toolUses=data.content.filter(b=>b.type==="tool_use");
+      const texts=data.content.filter(b=>b.type==="text").map(b=>b.text).join(" ").trim();
+      if(texts) showReply(texts);
+      if(!toolUses.length){ if(texts) speak(texts); break; }
+      const results=[];
+      for(const tu of toolUses){
+        const out=await runTool(tu.name, tu.input);
+        results.push({type:"tool_result", tool_use_id:tu.id, content:JSON.stringify(out)});
+      }
+      history.push({role:"user",content:results});
+    }
+  }catch(e){
+    // drop a trailing assistant tool_use turn with no matching result, or the next call 400s
+    const last=history[history.length-1];
+    if(last?.role==="assistant" && Array.isArray(last.content) && last.content.some(b=>b.type==="tool_use")) history.pop();
+    showReply("");
+    showHint(esc(e.message));
+  }
+  setState("","Ready");
+}
+
+/* ---------------- settings sheet ---------------- */
+function openSettings(){
+  $("fKey").value=S.key; $("fModel").value=S.model; $("fBridge").value=S.bridge;
+  $("fTts").classList.toggle("on",S.tts); $("fWake").classList.toggle("on",S.wake);
+  $("sheet").classList.add("open");
+}
+$("gear").addEventListener("click", openSettings);
+$("sheet").addEventListener("click", e=>{ if(e.target.id==="sheet") $("sheet").classList.remove("open"); });
+$("fTts").addEventListener("click", e=>e.target.classList.toggle("on"));
+$("fWake").addEventListener("click", e=>e.target.classList.toggle("on"));
+$("save").addEventListener("click", async ()=>{
+  S.key=$("fKey").value.trim(); S.model=$("fModel").value; S.bridge=$("fBridge").value.trim();
+  S.tts=$("fTts").classList.contains("on"); S.wake=$("fWake").classList.contains("on");
+  store.set("dm_key",S.key); store.set("dm_model",S.model); store.set("dm_bridge",S.bridge);
+  store.set("dm_tts",S.tts?"1":"0"); store.set("dm_wake",S.wake?"1":"0");
+  $("sheet").classList.remove("open");
+  refreshDots(); grabWake();
+});
+
+/* ---------------- status dots ---------------- */
+async function refreshDots(){
+  $("apiDot").classList.toggle("on", !!S.key);
+  const bd=$("bridgeDot");
+  bd.classList.remove("on");
+  if(S.bridge){
+    try{ const r=await fetch(S.bridge.replace(/\/$/,"")+"/ping",{method:"GET"}); if(r.ok) bd.classList.add("on"); }catch(e){}
+  }
+}
+refreshDots();
+
+/* ---------------- misc ---------------- */
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+if("speechSynthesis" in window) speechSynthesis.getVoices(); // warm voice list
+
+/* manifest injected as data URI so the whole app stays one file */
+(function(){
+  const man={
+    name:"Drive — Claude", short_name:"Drive", start_url:location.href, scope:location.href.replace(/[^/]*$/,""),
+    display:"standalone", background_color:"#0B0E11", theme_color:"#0B0E11", orientation:"portrait",
+    icons:[{src:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%230B0E11"/><circle cx="50" cy="50" r="34" fill="none" stroke="%23FFB454" stroke-width="5"/><circle cx="50" cy="50" r="11" fill="%23FFB454"/></svg>', sizes:"any", type:"image/svg+xml", purpose:"any"}]
+  };
+  const l=document.createElement("link"); l.rel="manifest";
+  l.href="data:application/manifest+json,"+encodeURIComponent(JSON.stringify(man));
+  document.head.appendChild(l);
+})();
+</script>
+</body>
+</html>
